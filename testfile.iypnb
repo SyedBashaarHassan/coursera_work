@@ -1,0 +1,67 @@
+
+from pathlib import Path
+import nbformat
+from nbclient import NotebookClient
+
+# Input notebook
+input_file = Path("FashionMNISTProject.ipynb")
+
+# Output notebook
+output_file = Path("FashionMNISTProject_Completed.ipynb")
+
+if not input_file.exists():
+    raise FileNotFoundError(
+        f"Notebook not found: {input_file.resolve()}"
+    )
+
+# Load the original notebook
+notebook = nbformat.read(input_file, as_version=4)
+
+# Execute every code cell and capture its output
+client = NotebookClient(
+    notebook,
+    timeout=1200,  # 20 minutes per cell
+    kernel_name="python3",
+    allow_errors=False,
+    resources={"metadata": {"path": str(input_file.resolve().parent)}}
+)
+
+try:
+    client.execute()
+except Exception:
+    # Save progress and any outputs collected before the failure
+    nbformat.write(notebook, output_file)
+    print(f"Execution failed. Partial notebook saved: {output_file}")
+    raise
+
+# Save the fully executed notebook
+nbformat.write(notebook, output_file)
+
+# Verify code-cell outputs and execution status
+code_cells = [
+    cell for cell in notebook.cells
+    if cell.cell_type == "code"
+]
+
+cells_with_errors = [
+    i for i, cell in enumerate(code_cells, start=1)
+    if any(
+        output.output_type == "error"
+        for output in cell.get("outputs", [])
+    )
+]
+
+cells_with_outputs = sum(
+    bool(cell.get("outputs", []))
+    for cell in code_cells
+)
+
+print(f"Total code cells: {len(code_cells)}")
+print(f"Code cells with outputs: {cells_with_outputs}")
+print(f"Cells with errors: {len(cells_with_errors)}")
+print(f"Saved notebook: {output_file.resolve()}")
+
+if cells_with_errors:
+    print("Error cell numbers:", cells_with_errors)
+else:
+    print("All code cells executed without reported errors.")
